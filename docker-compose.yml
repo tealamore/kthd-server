@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"          # reachable at http://<your-PC-IP>:8000
+    environment:
+      JITAI_API_KEY: ${JITAI_API_KEY:-devkey}
+      ADMIN_KEY: ${ADMIN_KEY:-devadmin}
+    volumes:
+      - jitai-data:/data     # database survives container restarts/rebuilds
+    restart: unless-stopped
+
+volumes:
+  jitai-data:
