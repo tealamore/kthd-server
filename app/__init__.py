@@ -1,5 +1,4 @@
 """JITAI backend: consent, intervention opportunities, rewards."""
-import hmac
 import json
 import os
 import sqlite3
@@ -13,10 +12,9 @@ from .db import close_db, get_db, init_db, iso, now_utc, to_json
 from .schemas import ConsentIn, OpportunityIn, RewardIn
 
 
-def create_app(database_path: str | None = None, api_key: str | None = None) -> Flask:
+def create_app(database_path: str | None = None) -> Flask:
     app = Flask(__name__)
     app.config["DATABASE_PATH"] = database_path or os.environ.get("DATABASE_PATH", "data/jitai.db")
-    app.config["API_KEY"] = api_key if api_key is not None else os.environ.get("JITAI_API_KEY", "")
 
     init_db(app.config["DATABASE_PATH"])
     app.teardown_appcontext(close_db)
@@ -60,13 +58,12 @@ def create_app(database_path: str | None = None, api_key: str | None = None) -> 
         }
 
     @app.before_request
-    def check_api_key():
-        key = app.config["API_KEY"]
-        if not key or request.path == "/health":
+    def check_device_id():
+        if request.path == "/health":
             return None
-        given = request.headers.get("X-API-Key", "")
-        if not hmac.compare_digest(given.encode(), key.encode()):
-            return error(401, "Missing or invalid X-API-Key header")
+        device_id = request.headers.get("X-Device-ID", "").strip()
+        if not device_id or len(device_id) > 128:
+            return error(400, "Missing or invalid X-Device-ID header")
         return None
 
     # ---------- endpoints ----------

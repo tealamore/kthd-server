@@ -10,8 +10,9 @@ from app import create_app, policy
 class ApiTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.app = create_app(database_path=os.path.join(self.tmp.name, "test.db"), api_key="")
+        self.app = create_app(database_path=os.path.join(self.tmp.name, "test.db"))
         self.client = self.app.test_client()
+        self.client.environ_base["HTTP_X_DEVICE_ID"] = "8f3a21b4c5e67890"
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -107,16 +108,15 @@ class ApiTest(unittest.TestCase):
                              content_type="application/json")
         self.assertEqual(r.status_code, 422)
 
-    # --- auth ---
-    def test_api_key(self):
-        app = create_app(database_path=os.path.join(self.tmp.name, "auth.db"), api_key="secret")
-        c = app.test_client()
+    # --- device id header ---
+    def test_device_id_header_required(self):
+        c = self.app.test_client()  # no default X-Device-ID
         self.assertEqual(c.get("/health").status_code, 200)
         body = {"participant_id": "p1", "consented": True, "consent_version": "v1"}
-        self.assertEqual(c.post("/consent", json=body).status_code, 401)
-        self.assertEqual(c.post("/consent", json=body, headers={"X-API-Key": "wrong"}).status_code, 401)
-        self.assertEqual(c.post("/consent", json=body, headers={"X-API-Key": "secret"}).status_code, 201)
-
+        self.assertEqual(c.post("/consent", json=body).status_code, 400)
+        self.assertEqual(c.post("/consent", json=body, headers={"X-Device-ID": "  "}).status_code, 400)
+        self.assertEqual(c.post("/consent", json=body, headers={"X-Device-ID": "x" * 129}).status_code, 400)
+        self.assertEqual(c.post("/consent", json=body, headers={"X-Device-ID": "8f3a21b4c5e67890"}).status_code, 201)
 
 if __name__ == "__main__":
     unittest.main()

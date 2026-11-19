@@ -21,10 +21,9 @@ Needs Docker Desktop (Windows/Mac) or Docker Engine (Linux).
 docker compose up --build        # add -d to run in the background
 ```
 
-The server runs at `http://localhost:8000` with API key `devkey` and admin
-key `devadmin`. To use other keys:
-`JITAI_API_KEY=abc ADMIN_KEY=xyz docker compose up --build`
-(in Windows PowerShell, set them with `$env:JITAI_API_KEY="abc"` first).
+The server runs at `http://localhost:8000` with admin key `devadmin`. To
+use another key: `ADMIN_KEY=xyz docker compose up --build`
+(in Windows PowerShell, set it with `$env:ADMIN_KEY="xyz"` first).
 
 The database is kept in a Docker volume, so it survives restarts and
 rebuilds. Useful commands:
@@ -45,8 +44,8 @@ docker compose down -v                                  # stop AND wipe the data
    - Linux: `hostname -I`
 2. **Test it from the phone's browser:** open
    `http://192.168.1.23:8000/health`. You should see `{"status": "ok"}`.
-3. **Set the app's server URL** to `http://192.168.1.23:8000` and send
-   `X-API-Key: devkey`.
+3. **Set the app's server URL** to `http://192.168.1.23:8000`. The app
+   sends its `X-Device-ID` header on every request.
 
 If step 2 doesn't load:
 - **Firewall.** Windows may ask to allow Docker the first time. Allow it
@@ -78,20 +77,23 @@ cloudflared tunnel --url http://localhost:8000
 ```
 It prints an `https://….trycloudflare.com` URL that works from any phone on
 any network while the command is running. Install `cloudflared` from
-Cloudflare first. Anyone with that URL can reach your server, so keep the
-API key set.
+Cloudflare first. Anyone with that URL can reach your server, and there is
+no API key, so only share the URL with the app.
 
 ## Settings (environment variables)
 
 | Variable        | Default         | Meaning |
 |-----------------|-----------------|---------|
 | `DATABASE_PATH` | `data/jitai.db` | Where the SQLite file lives. Must be on a persistent disk in production. |
-| `JITAI_API_KEY` | *(empty)*       | If set, every request except `/health` and `/admin/*` needs header `X-API-Key: <value>`. Set it in production. |
 | `ADMIN_KEY`     | *(empty)*       | Turns on `GET /admin/backup` (header `X-Admin-Key: <value>`). Keep it off the phone. |
 | `SQLITE_JOURNAL_MODE` | `DELETE`  | Leave as is on PythonAnywhere (network disk). `WAL` is only safe on a local disk. |
 | `PORT`          | `8000`          | Port for `python wsgi.py`. |
 
 ## API
+
+Every request except `/health` must send an `X-Device-ID` header (the
+participant's Android ID, up to 128 characters); without it the server
+returns `400`.
 
 All bodies are JSON. Timestamps (`occurred_at`) are optional ISO-8601 strings
 from the phone. The server also stamps its own `received_at` in UTC.
@@ -136,7 +138,7 @@ row decides whether they can get decisions.
 decision. `409` means a reward was already recorded for it.
 
 ### `GET /health`
-→ `{"status": "ok"}`. Doesn't need the API key.
+→ `{"status": "ok"}`. Doesn't need the `X-Device-ID` header.
 
 ### `GET /admin/backup`
 Downloads a consistent copy of the whole database, safe even while the app
@@ -165,10 +167,9 @@ This gives one row per decision with its reward. Context fields become
 
 Below, replace `YOURNAME` with your PythonAnywhere username.
 
-1. **Make two secret keys** on your own computer, running this twice:
+1. **Make an admin key** on your own computer:
    `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
-   The first is the API key, which goes in the phone app. The second is the
-   admin key, which only you keep.
+   Only you keep it; it never goes in the phone app.
 2. **Upload the code.** On the **Files** tab, upload `jitai-backend.zip`
    into `/home/YOURNAME/`.
 3. **Unzip it and install the packages.** Open a **Bash console** from the
@@ -193,7 +194,6 @@ Below, replace `YOURNAME` with your PythonAnywhere username.
    import os, sys
 
    os.environ["DATABASE_PATH"] = "/home/YOURNAME/jitai-data/jitai.db"
-   os.environ["JITAI_API_KEY"] = "PASTE_API_KEY_HERE"
    os.environ["ADMIN_KEY"] = "PASTE_ADMIN_KEY_HERE"
 
    sys.path.insert(0, "/home/YOURNAME/jitai-backend")
@@ -206,8 +206,8 @@ Below, replace `YOURNAME` with your PythonAnywhere username.
    `{"status": "ok"}`. If it doesn't, the *Error log* link on the Web tab
    shows why.
 
-Point the phone app at `https://YOURNAME.pythonanywhere.com` and send
-`X-API-Key` on every request.
+Point the phone app at `https://YOURNAME.pythonanywhere.com`. It sends
+`X-Device-ID` on every request.
 
 ### During the study
 
